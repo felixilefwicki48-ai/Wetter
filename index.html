@@ -105,18 +105,21 @@ const wc=c=>{const r=WC.find(x=>x[0]==c)||[0,"❔","–"];return [r[1],r[2]]};
 const t0=v=>Math.round(v)+"°C";
 const dir=d=>["N","NO","O","SO","S","SW","W","NW"][Math.round(d/45)%8];
 const hm=s=>s.slice(11,16);
-const day=(s,f)=>new Date(s+"T12:00:00Z").toLocaleDateString("de-DE",Object.assign({timeZone:cache&&cache.timezone||"UTC"},f));
+const day=(s,f)=>new Date(s+"T12:00:00Z").toLocaleDateString("de-DE",Object.assign({timeZone:"UTC"},f));
 
 /* Speicher: Favoriten + Standard */
 const K="wx_favs",D="wx_def";
-const pid=p=>p.lat.toFixed(4)+","+p.lon.toFixed(4);
+const pid=p=>p.lat.toFixed(3)+","+p.lon.toFixed(3);
 let favs,def;
 try{favs=JSON.parse(localStorage.getItem(K))}catch(e){}
 if(!Array.isArray(favs)||!favs.length)favs=[{name:"Rostock",sub:"Mecklenburg-Vorpommern, Deutschland",lat:54.0924,lon:12.0991}];
 /* Gespeicherte Orte normalisieren */
 favs=favs.map(f=>({name:f.name,sub:f.sub,lat:f.lat,lon:f.lon}));
+favs=favs.filter((f,i,a)=>a.findIndex(g=>pid(g)==pid(f))==i); // Duplikate nach Rundung entfernen
 try{def=localStorage.getItem(D)}catch(e){}
-if(!favs.some(f=>pid(f)==def))def=pid(favs[0]);
+/* Standard-Schlüssel aus älteren Formaten (2 oder 4 Nachkommastellen) übernehmen */
+const oldKeys=f=>[f.lat.toFixed(2)+","+f.lon.toFixed(2),f.lat.toFixed(4)+","+f.lon.toFixed(4)];
+{const df=favs.find(f=>pid(f)==def||oldKeys(f).includes(def));def=df?pid(df):pid(favs[0])}
 const save=()=>{try{localStorage.setItem(K,JSON.stringify(favs));localStorage.setItem(D,def)}catch(e){}};
 let place=null,cache=null;
 const isFav=()=>place&&favs.some(f=>pid(f)==pid(place));
@@ -127,18 +130,20 @@ function renderFavs(){
 }
 
 /* Standortsuche mit Tastaturnavigation */
-let timer,sel=-1,curRes=[];
+let timer,sel=-1,curRes=[],reqId=0;
 const setRes=h=>{$("#res").hidden=!h;$("#q").setAttribute("aria-expanded",h?"true":"false")};
 function paintSel(){
   $("#res").querySelectorAll("button[data-i]").forEach(b=>b.classList.toggle("hl",+b.dataset.i==sel));
   $("#q").setAttribute("aria-activedescendant",sel>=0?"o"+sel:"");
 }
 $("#q").addEventListener("input",e=>{
-  clearTimeout(timer);sel=-1;const v=e.target.value.trim();
+  clearTimeout(timer);sel=-1;reqId++;const v=e.target.value.trim();
   if(v.length<2){curRes=[];setRes(false);return}
   timer=setTimeout(async()=>{
+    const my=reqId;
     try{
       const r=await(await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(v)}&count=6&language=de`)).json();
+      if(my!==reqId)return; // veraltete Antwort verwerfen
       curRes=r.results||[];
       $("#res").innerHTML=curRes.length?curRes.map((x,i)=>`<button data-i="${i}" id="o${i}" role="option">${esc(x.name)}${x.postcodes?" "+esc(x.postcodes[0]):""}<br><small>${esc([x.admin1,x.country].filter(Boolean).join(", "))}</small></button>`).join("")
         :`<button disabled>Kein Ort gefunden. Prüfe die Schreibweise oder die PLZ.</button>`;
@@ -147,7 +152,7 @@ $("#q").addEventListener("input",e=>{
         const x=curRes[b.dataset.i];setRes(false);$("#q").value="";
         load({name:x.name,sub:[x.admin1,x.country].filter(Boolean).join(", "),lat:x.latitude,lon:x.longitude});
       });
-    }catch(e){curRes=[];$("#res").innerHTML=`<button disabled>Suche fehlgeschlagen. Prüfe deine Verbindung.</button>`;setRes(true)}
+    }catch(e){if(my!==reqId)return;curRes=[];$("#res").innerHTML=`<button disabled>Suche fehlgeschlagen. Prüfe deine Verbindung.</button>`;setRes(true)}
   },300);
 });
 $("#q").addEventListener("keydown",e=>{
@@ -158,7 +163,7 @@ $("#q").addEventListener("keydown",e=>{
     e.preventDefault();
     sel=(sel+(e.key=="ArrowDown"?1:curRes.length-1))%curRes.length;
     paintSel();
-    $("#res").querySelector(`#o${sel}`)?.focus();
+    const o=$("#res").querySelector(`#o${sel}`);if(o)o.scrollIntoView({block:"nearest"});
   }else if(e.key=="Enter"){
     e.preventDefault();
     const b=$("#res").querySelector(`#o${sel>=0?sel:0}`);if(b)b.click();
@@ -233,7 +238,7 @@ function pressureChart(h,idx){
   const x=i=>L+i*(W-L-R)/(p.length-1),y=v=>T+(1-(v-mn)/(mx-mn))*(H-T-B);
   const pts=p.map((v,i)=>x(i).toFixed(1)+","+y(v).toFixed(1));
   const line="M"+pts.join(" L"),area=line+` L${x(p.length-1)},${H-B} L${x(0)},${H-B}Z`;
-  const ci=Math.max(idx,0),pi=Math.max(idx-3,0);
+  const ci=Math.min(Math.max(idx,0),p.length-1),pi=Math.max(ci-3,0);
   const trend=p[ci]-p[pi],tt=Math.abs(trend)<1?"stabil":trend>0?"steigend":"fallend";
   const lab=(i,t)=>`<text x="${x(i)+4}" y="${H-8}" fill="var(--mu)" font-size="12">${t}</text>`;
   return `<div class="chart"><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:1.3rem;font-weight:500">${Math.round(p[ci])} hPa</b><span class="mu">${tt} (${trend>0?"+":""}${fx(trend)} in 3 Std.)</span></div>
@@ -249,7 +254,7 @@ function pressureChart(h,idx){
 function render(){
   const d=cache,c=d.current,h=d.hourly,dl=d.daily;
   let idx=h.time.indexOf(c.time.slice(0,13)+":00");
-  if(idx<0)idx=h.time.length-1; // Fallback: letzte bekannte Stunde
+  if(idx<0){const d0=h.time.findIndex(t=>t.slice(0,10)==c.time.slice(0,10));idx=(d0<0?24:d0)+(+c.time.slice(11,13)||0)} // Fallback: Stunde von heute
   const [em,tx]=wc(c.weather_code);
   const hours=[1,2,3].map(n=>{
     const j=Math.min(idx+n,h.time.length-1),[e,t]=wc(h.weather_code[j]);
