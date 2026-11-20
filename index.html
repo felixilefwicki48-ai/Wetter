@@ -41,14 +41,26 @@ h2{font-size:1.05rem;font-weight:600;margin:26px 2px 10px}
 .chart{background:var(--card);border-radius:20px;padding:16px 14px 10px}
 .chart svg{width:100%;height:auto;display:block}
 .list{background:var(--card);border-radius:20px;padding:4px 14px}
-.day{display:grid;grid-template-columns:78px 30px 1fr 56px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--ln);font-size:.95rem}
-.day:last-child{border-bottom:0}
+.sec{background:var(--card);border-radius:20px;padding:0 14px;margin-top:26px}
+summary{list-style:none;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+.sec>summary{display:flex;justify-content:space-between;align-items:center;padding:14px 0;font-weight:600;font-size:1.05rem}
+.sec>summary::after{content:"▾";color:var(--mu);transition:transform .2s}
+.sec[open]>summary::after{transform:rotate(180deg)}
+.day{border-top:1px solid var(--ln)}
+.day>summary{display:grid;grid-template-columns:84px 36px 1fr 68px;gap:10px;align-items:center;padding:9px 0;font-size:.95rem}
+.ic{font-size:1.6rem;line-height:1}
+.dbody{padding:2px 0 12px}
+.dbody .facts{margin-top:8px;border-top:0;padding-top:0}
+.warn{display:grid;gap:8px;margin-top:14px}
+.w{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:14px 14px 14px 4px;background:rgba(217,142,31,.16);border-left:4px solid var(--sun);font-size:.93rem}
+.w.hi{background:rgba(192,57,43,.15);border-left-color:#c0392b}
 .bar{position:relative;height:6px;border-radius:3px;background:var(--ln)}
 .bar i{position:absolute;top:0;bottom:0;border-radius:3px;background:linear-gradient(90deg,var(--ac),var(--sun))}
 .rng{display:flex;justify-content:space-between;font-size:.82rem;color:var(--mu);margin-top:3px}
 .msg{padding:30px 6px;color:var(--mu)}
 footer{margin:26px 0 8px;text-align:center;font-size:.8rem;color:var(--mu)}
-@media(max-width:480px){.temp b{font-size:4.2rem}.day{grid-template-columns:64px 26px 1fr 50px}.row{gap:8px}}
+@media(max-width:480px){.temp b{font-size:4.2rem}.day>summary{grid-template-columns:70px 32px 1fr 58px;gap:8px}.row{gap:8px}}
 @media(prefers-reduced-motion:no-preference){#app{animation:in .4s ease}@keyframes in{from{opacity:.3}}}
 </style>
 </head>
@@ -126,12 +138,35 @@ $("#geo").onclick=()=>{
 /* Wetterdaten laden */
 async function load(p){
   place=p;renderFavs();$("#app").innerHTML=`<p class="msg">Lade Wetter für ${esc(p.name)} …</p>`;
-  const u=`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl&hourly=temperature_2m,weather_code,wind_speed_10m,precipitation_probability,pressure_msl&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max&timezone=auto&past_days=1&forecast_days=14&wind_speed_unit=kmh`;
+  const u=`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl&hourly=temperature_2m,weather_code,wind_speed_10m,precipitation_probability,pressure_msl&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max,snowfall_sum&timezone=auto&past_days=1&forecast_days=14&wind_speed_unit=kmh`;
   try{
-    const r=await fetch(u);if(!r.ok)throw 0;
-    cache=await r.json();render();
+    const [r,pl]=await Promise.all([fetch(u),loadPollen(p)]);if(!r.ok)throw 0;
+    cache=await r.json();pollen=pl;render();
   }catch(e){$("#app").innerHTML=`<p class="msg">Wetterdaten konnten nicht geladen werden. Prüfe deine Verbindung und tippe auf „Neu laden“.</p><button onclick="load(place)">Neu laden</button>`}
 }
+
+let pollen={},open14=false;
+async function loadPollen(p){
+  try{
+    const r=await(await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${p.lat}&longitude=${p.lon}&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto&forecast_days=5`)).json();
+    const h=r.hourly,keys=[["alder_pollen","Erle",30],["birch_pollen","Birke",30],["grass_pollen","Gräser",20],["mugwort_pollen","Beifuß",20],["olive_pollen","Olive",30],["ragweed_pollen","Ambrosia",20]],m={};
+    h.time.forEach((t,i)=>{const d=t.slice(0,10);keys.forEach(([k,n,th])=>{const v=h[k]&&h[k][i];if(v!=null&&v>=th){(m[d]=m[d]||{})[n]=1}})});
+    return m;
+  }catch(e){return{}}
+}
+const SN=[71,73,75,77,85,86],FZ=[56,57,66,67];
+const rainCode=c=>(c>=51&&c<=67)||(c>=80&&c<=82)||c>=95;
+function warns(n){
+  const dl=cache.daily,w=[],code=dl.weather_code[n],lo=dl.temperature_2m_min[n],rain=dl.precipitation_sum[n]||0,pp=dl.precipitation_probability_max[n]??0,snow=dl.snowfall_sum[n]||0;
+  if(code>=95)w.push(["⛈️","Gewitter erwartet",1]);
+  if(FZ.includes(code)||(lo<=0&&(rain>0.1||code==45||code==48)))w.push(["🧊","Glättegefahr durch Frost oder gefrierenden Niederschlag",1]);
+  if(SN.includes(code)||snow>0.2)w.push(["🌨️","Schnee erwartet"+(snow>0.2?` (${snow.toFixed(1)} cm)`:"")]);
+  if((rainCode(code)&&rain>=0.5)||(pp>=60&&rain>=1&&!SN.includes(code)))w.push(["🌧️",`Regen erwartet (${rain.toFixed(1)} mm, ${pp} % Wahrscheinlichkeit)`]);
+  if(lo<0)w.push(["🥶",`Temperatur sinkt unter 0 °C (Tiefstwert ${Math.round(lo)}°)`,1]);
+  const po=pollen[dl.time[n]];if(po)w.push(["🤧","Erhöhter Pollenflug: "+Object.keys(po).join(", ")]);
+  return w;
+}
+const wHtml=a=>a.length?`<div class="warn">${a.map(x=>`<div class="w${x[2]?" hi":""}"><span>${x[0]}</span><span>${x[1]}</span></div>`).join("")}</div>`:"";
 
 function pressureChart(h,idx){
   const p=h.pressure_msl.slice(0,72),W=640,H=150,L=8,R=8,T=14,B=26;
@@ -155,13 +190,16 @@ function render(){
   const d=cache,c=d.current,h=d.hourly,dl=d.daily;
   const idx=h.time.indexOf(c.time.slice(0,13)+":00");
   const [em,tx]=wc(c.weather_code),i=1; // dl-Index 1 = heute
-  const hours=[1,2,3].map(n=>{const j=idx+n,[e,t]=wc(h.weather_code[j]);return `<div class="box"><span class="mu">${hm(h.time[j])} Uhr</span><div class="e">${e}</div><b>${t0(h.temperature_2m[j])}</b><div class="mu">${Math.round(h.wind_speed_10m[j])} km/h · ${h.precipitation_probability[j]??0} %</div></div>`}).join("");
+  const hours=[1,2,3].map(n=>{const j=idx+n,[e,t]=wc(h.weather_code[j]);return `<div class="box"><span class="mu">${hm(h.time[j])} Uhr</span><div class="e">${e}</div><b>${t0(h.temperature_2m[j])}</b><div class="mu">${t}<br>${Math.round(h.wind_speed_10m[j])} km/h · ${h.precipitation_probability[j]??0} %</div></div>`}).join("");
   const names=["Heute","Morgen"];
   const d3=[1,2,3].map(n=>{const [e,t]=wc(dl.weather_code[n]);return `<div class="box"><span class="mu">${n<3?names[n-1]:day(dl.time[n],{weekday:"long"})}</span><div class="e">${e}</div><b>${t0(dl.temperature_2m_max[n])}</b> <span class="mu">${t0(dl.temperature_2m_min[n])}</span><div class="mu">${t}<br>Regen ${dl.precipitation_probability_max[n]??0} % · ${dl.precipitation_sum[n].toFixed(1)} mm<br>Wind bis ${Math.round(dl.wind_speed_10m_max[n])} km/h</div></div>`}).join("");
   const gmin=Math.min(...dl.temperature_2m_min.slice(1)),gmax=Math.max(...dl.temperature_2m_max.slice(1));
-  const d14=dl.time.slice(1).map((t,k)=>{const n=k+1,[e,tt]=wc(dl.weather_code[n]),lo=dl.temperature_2m_min[n],hi=dl.temperature_2m_max[n];
+  const d14=dl.time.slice(1).map((t,k)=>{const n=k+1,[e,tt]=wc(dl.weather_code[n]),lo=dl.temperature_2m_min[n],hi=dl.temperature_2m_max[n],ww=warns(n),pp=dl.precipitation_probability_max[n]??0;
     const a=(lo-gmin)/(gmax-gmin)*100,b=(hi-gmin)/(gmax-gmin)*100;
-    return `<div class="day"><span>${n==1?"Heute":day(t,{weekday:"short",day:"numeric",month:"numeric"})}</span><span title="${tt}">${e}</span><div><div class="bar"><i style="left:${a}%;right:${100-b}%"></i></div><div class="rng"><span>${dl.precipitation_probability_max[n]??0} % Regen</span><span>${Math.round(dl.wind_speed_10m_max[n])} km/h</span></div></div><b style="font-weight:500;text-align:right">${t0(lo)} / ${t0(hi)}</b></div>`}).join("");
+    return `<details class="day"><summary><span>${n==1?"Heute":day(t,{weekday:"short",day:"numeric",month:"numeric"})}${ww.length?" ⚠️":""}</span><span class="ic">${e}</span><div><div class="bar"><i style="left:${a}%;right:${100-b}%"></i></div><div class="rng"><span>${tt}</span><span>${pp} % Regen</span></div></div><b style="font-weight:500;text-align:right">${t0(lo)} / ${t0(hi)}</b></summary>
+    <div class="dbody">${wHtml(ww)}<div class="facts"><div><span>Niederschlag</span>${dl.precipitation_sum[n].toFixed(1)} mm</div><div><span>Wind bis</span>${Math.round(dl.wind_speed_10m_max[n])} km/h</div><div><span>UV-Index</span>${Math.round(dl.uv_index_max[n])}</div><div><span>Sonne</span>${hm(dl.sunrise[n])} bis ${hm(dl.sunset[n])} Uhr</div></div></div></details>`}).join("");
+  const w1=warns(1),w2=warns(2);
+  const banner=(w1.length||w2.length)?(w1.length?`<div class="mu" style="margin:14px 2px -6px">Heute</div>${wHtml(w1)}`:"")+(w2.length?`<div class="mu" style="margin:14px 2px -6px">Morgen</div>${wHtml(w2)}`:""):`<p class="mu" style="margin:14px 2px 0">Keine Warnungen für heute und morgen.</p>`;
   $("#app").innerHTML=`
   <section class="hero"><h1><span>${esc(place.name)}<br><span class="mu" style="font-size:.85rem">${esc(place.sub||"")}</span></span>
     <span class="actions"><button id="fav">${isFav()?"★ Favorit":"☆ Merken"}</button>${isFav()&&pid(place)!=def?`<button id="def">Als Standard</button>`:""}</span></h1>
@@ -175,10 +213,12 @@ function render(){
       <div><span>Sonnenaufgang</span>${hm(dl.sunrise[1])} Uhr</div>
       <div><span>Sonnenuntergang</span>${hm(dl.sunset[1])} Uhr</div>
     </div></section>
+  ${banner}
   <h2>Nächste 3 Stunden</h2><div class="row">${hours}</div>
   <h2>Nächste 3 Tage</h2><div class="row d3">${d3}</div>
   <h2>Luftdruck von gestern bis morgen</h2>${pressureChart(h,idx)}
-  <h2>14-Tage-Vorhersage</h2><div class="list">${d14}</div>`;
+  <details class="sec" id="sec14" ${open14?"open":""}><summary>14-Tage-Vorhersage</summary>${d14}</details>`;
+  $("#sec14").addEventListener("toggle",e=>{open14=e.target.open});
   $("#fav").onclick=()=>{
     if(isFav()){favs=favs.filter(f=>pid(f)!=pid(place));if(!favs.length)favs=[place];if(!favs.some(f=>pid(f)==def))def=pid(favs[0])}
     else favs.push(place);
