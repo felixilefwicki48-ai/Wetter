@@ -3,8 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#e9efee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b181d" media="(prefers-color-scheme: dark)">
 <title>Wetter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#e9efee;--card:#f8fbfa;--tx:#10242b;--mu:#5d7279;--ac:#0b7a75;--sun:#d98e1f;--ln:#d2dcdb;--ok:#0b7a75}
@@ -15,11 +18,13 @@ button,input{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:1px solid var(--ln);border-radius:999px;padding:6px 12px}
 button:hover{border-color:var(--ac)}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
-.search{position:relative;display:flex;gap:8px}
-.search input{flex:1;min-width:0;background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:11px 14px}
-.search button{border-radius:14px;background:var(--card)}
-#res{position:absolute;top:100%;left:0;right:104px;z-index:5;background:var(--card);border:1px solid var(--ln);border-radius:14px;margin-top:6px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+.search{display:flex;gap:8px}
+.in{position:relative;flex:1;min-width:0}
+.in input{width:100%;background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:11px 14px}
+.search>button{border-radius:14px;background:var(--card);align-self:stretch}
+#res{position:absolute;top:100%;left:0;right:0;z-index:5;background:var(--card);border:1px solid var(--ln);border-radius:14px;margin-top:6px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.15)}
 #res button{display:block;width:100%;text-align:left;border:0;border-radius:0;padding:10px 14px;border-bottom:1px solid var(--ln)}
+#res button.hl{background:rgba(11,122,117,.12)}
 #res small,.mu{color:var(--mu)}
 #favs{display:flex;gap:8px;overflow-x:auto;padding:12px 0 4px}
 #favs button{white-space:nowrap;background:var(--card)}
@@ -49,7 +54,7 @@ summary::-webkit-details-marker{display:none}
 .sec>summary::after{content:"▾";color:var(--mu);transition:transform .2s}
 .sec[open]>summary::after{transform:rotate(180deg)}
 .day{border-top:1px solid var(--ln)}
-.day>summary{display:grid;grid-template-columns:84px 36px 1fr 96px;gap:10px;align-items:center;padding:9px 0;font-size:.95rem}
+.day>summary{display:grid;grid-template-columns:minmax(64px,84px) 36px 1fr minmax(80px,96px);gap:10px;align-items:center;padding:9px 0;font-size:.95rem}
 .ic{font-size:1.6rem;line-height:1}
 .day>summary b{white-space:nowrap}
 .dbody{padding:2px 0 12px}
@@ -67,17 +72,21 @@ summary::-webkit-details-marker{display:none}
 .rng{display:flex;justify-content:space-between;font-size:.82rem;color:var(--mu);margin-top:3px}
 .msg{padding:30px 6px;color:var(--mu)}
 footer{margin:26px 0 8px;text-align:center;font-size:.8rem;color:var(--mu)}
-@media(max-width:480px){.temp b{font-size:4rem}.temp .big{font-size:4.6rem}.day>summary{grid-template-columns:64px 30px 1fr 86px;gap:8px;font-size:.9rem}.row{gap:8px}}
+@media(max-width:480px){.temp b{font-size:4rem}.temp .big{font-size:4.6rem}.day>summary{grid-template-columns:minmax(56px,64px) 30px 1fr minmax(70px,86px);gap:8px;font-size:.9rem}.row{gap:8px}}
 #ref:disabled{opacity:.5}
 @media(prefers-reduced-motion:no-preference){#ref.spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}#app{animation:in .4s ease}@keyframes in{from{opacity:.3}}}
 </style>
 </head>
 <body>
 <div class="search">
-  <input id="q" type="search" placeholder="Ort oder PLZ suchen" autocomplete="off" aria-label="Ort oder PLZ suchen">
+  <div class="in">
+    <input id="q" type="search" placeholder="Ort oder PLZ suchen" autocomplete="off"
+      role="combobox" aria-expanded="false" aria-controls="res" aria-describedby="res"
+      aria-autocomplete="list" aria-label="Ort oder PLZ suchen">
+    <div id="res" role="listbox" hidden></div>
+  </div>
   <button id="geo" title="Meinen Standort verwenden" aria-label="Meinen Standort verwenden">📍</button>
   <button id="ref" title="Wetterdaten aktualisieren" aria-label="Wetterdaten aktualisieren">↻</button>
-  <div id="res" hidden></div>
 </div>
 <div id="favs"></div>
 <main id="app"><p class="msg">Lade Wetter …</p></main>
@@ -86,6 +95,8 @@ footer{margin:26px 0 8px;text-align:center;font-size:.8rem;color:var(--mu)}
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const nf1=new Intl.NumberFormat("de-DE",{minimumFractionDigits:1,maximumFractionDigits:1});
+const fx=v=>nf1.format(v);
 const WC=[[0,"☀️","Klar"],[1,"🌤️","Überwiegend klar"],[2,"⛅","Wolkig"],[3,"☁️","Bedeckt"],[45,"🌫️","Nebel"],[48,"🌫️","Reifnebel"],[51,"🌦️","Nieselregen"],[53,"🌦️","Nieselregen"],[55,"🌦️","Starker Nieselregen"],[56,"🌧️","Gefrierender Niesel"],[57,"🌧️","Gefrierender Niesel"],[61,"🌧️","Leichter Regen"],[63,"🌧️","Regen"],[65,"🌧️","Starkregen"],[66,"🌧️","Gefrierender Regen"],[67,"🌧️","Gefrierender Regen"],[71,"🌨️","Leichter Schneefall"],[73,"🌨️","Schneefall"],[75,"❄️","Starker Schneefall"],[77,"🌨️","Schneegriesel"],[80,"🌦️","Schauer"],[81,"🌦️","Schauer"],[82,"⛈️","Starke Schauer"],[85,"🌨️","Schneeschauer"],[86,"🌨️","Schneeschauer"],[95,"⛈️","Gewitter"],[96,"⛈️","Gewitter mit Hagel"],[99,"⛈️","Gewitter mit Hagel"]];
 const LEG=[["☀️","Klar"],["🌤️","Überwiegend klar"],["⛅","Wolkig"],["☁️","Bedeckt"],["🌫️","Nebel"],["🌦️","Nieselregen, Schauer"],["🌧️","Regen"],["🌨️","Schnee, Schneeschauer"],["❄️","Starker Schneefall"],["⛈️","Gewitter, starke Schauer"]];
 const LEGW=[["⚠️","Für diesen Tag liegt eine Warnung vor"],["🧊","Glättegefahr"],["🥶","Frost unter 0 °C"],["🤧","Erhöhter Pollenflug"]];
@@ -94,14 +105,16 @@ const wc=c=>{const r=WC.find(x=>x[0]==c)||[0,"❔","–"];return [r[1],r[2]]};
 const t0=v=>Math.round(v)+"°C";
 const dir=d=>["N","NO","O","SO","S","SW","W","NW"][Math.round(d/45)%8];
 const hm=s=>s.slice(11,16);
-const day=(s,f)=>new Date(s+"T12:00").toLocaleDateString("de-DE",f);
+const day=(s,f)=>new Date(s+"T12:00:00Z").toLocaleDateString("de-DE",Object.assign({timeZone:cache&&cache.timezone||"UTC"},f));
 
 /* Speicher: Favoriten + Standard */
 const K="wx_favs",D="wx_def";
-const pid=p=>p.lat.toFixed(2)+","+p.lon.toFixed(2);
+const pid=p=>p.lat.toFixed(4)+","+p.lon.toFixed(4);
 let favs,def;
 try{favs=JSON.parse(localStorage.getItem(K))}catch(e){}
 if(!Array.isArray(favs)||!favs.length)favs=[{name:"Rostock",sub:"Mecklenburg-Vorpommern, Deutschland",lat:54.0924,lon:12.0991}];
+/* Gespeicherte Orte normalisieren */
+favs=favs.map(f=>({name:f.name,sub:f.sub,lat:f.lat,lon:f.lon}));
 try{def=localStorage.getItem(D)}catch(e){}
 if(!favs.some(f=>pid(f)==def))def=pid(favs[0]);
 const save=()=>{try{localStorage.setItem(K,JSON.stringify(favs));localStorage.setItem(D,def)}catch(e){}};
@@ -113,29 +126,51 @@ function renderFavs(){
   $("#favs").querySelectorAll("button").forEach(b=>b.onclick=()=>{const f=favs.find(x=>pid(x)==b.dataset.id);load(f)});
 }
 
-/* Standortsuche */
-let timer;
+/* Standortsuche mit Tastaturnavigation */
+let timer,sel=-1,curRes=[];
+const setRes=h=>{$("#res").hidden=!h;$("#q").setAttribute("aria-expanded",h?"true":"false")};
+function paintSel(){
+  $("#res").querySelectorAll("button[data-i]").forEach(b=>b.classList.toggle("hl",+b.dataset.i==sel));
+  $("#q").setAttribute("aria-activedescendant",sel>=0?"o"+sel:"");
+}
 $("#q").addEventListener("input",e=>{
-  clearTimeout(timer);const v=e.target.value.trim();
-  if(v.length<2){$("#res").hidden=true;return}
+  clearTimeout(timer);sel=-1;const v=e.target.value.trim();
+  if(v.length<2){curRes=[];setRes(false);return}
   timer=setTimeout(async()=>{
     try{
       const r=await(await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(v)}&count=6&language=de`)).json();
-      const res=r.results||[];
-      $("#res").innerHTML=res.length?res.map((x,i)=>`<button data-i="${i}">${esc(x.name)}${x.postcodes?" "+esc(x.postcodes[0]):""}<br><small>${esc([x.admin1,x.country].filter(Boolean).join(", "))}</small></button>`).join(""):`<button disabled>Kein Ort gefunden. Prüfe die Schreibweise oder die PLZ.</button>`;
-      $("#res").hidden=false;
+      curRes=r.results||[];
+      $("#res").innerHTML=curRes.length?curRes.map((x,i)=>`<button data-i="${i}" id="o${i}" role="option">${esc(x.name)}${x.postcodes?" "+esc(x.postcodes[0]):""}<br><small>${esc([x.admin1,x.country].filter(Boolean).join(", "))}</small></button>`).join("")
+        :`<button disabled>Kein Ort gefunden. Prüfe die Schreibweise oder die PLZ.</button>`;
+      setRes(true);sel=curRes.length?0:-1;paintSel();
       $("#res").querySelectorAll("button[data-i]").forEach(b=>b.onclick=()=>{
-        const x=res[b.dataset.i];$("#res").hidden=true;$("#q").value="";
+        const x=curRes[b.dataset.i];setRes(false);$("#q").value="";
         load({name:x.name,sub:[x.admin1,x.country].filter(Boolean).join(", "),lat:x.latitude,lon:x.longitude});
       });
-    }catch(e){$("#res").innerHTML=`<button disabled>Suche fehlgeschlagen. Prüfe deine Verbindung.</button>`;$("#res").hidden=false}
+    }catch(e){curRes=[];$("#res").innerHTML=`<button disabled>Suche fehlgeschlagen. Prüfe deine Verbindung.</button>`;setRes(true)}
   },300);
 });
-document.addEventListener("click",e=>{if(!e.target.closest(".search"))$("#res").hidden=true});
+$("#q").addEventListener("keydown",e=>{
+  const open=!$("#res").hidden&&curRes.length;
+  if(e.key=="Escape"){setRes(false);return}
+  if(!open)return;
+  if(e.key=="ArrowDown"||e.key=="ArrowUp"){
+    e.preventDefault();
+    sel=(sel+(e.key=="ArrowDown"?1:curRes.length-1))%curRes.length;
+    paintSel();
+    $("#res").querySelector(`#o${sel}`)?.focus();
+  }else if(e.key=="Enter"){
+    e.preventDefault();
+    const b=$("#res").querySelector(`#o${sel>=0?sel:0}`);if(b)b.click();
+  }
+});
+$("#res").addEventListener("focusout",e=>{setTimeout(()=>{if(!e.relatedTarget||!e.relatedTarget.closest(".in"))setRes(false)},0)});
+document.addEventListener("click",e=>{if(!e.target.closest(".in"))setRes(false)});
 
 /* Automatischer Standort */
 $("#geo").onclick=()=>{
   if(!navigator.geolocation){alert("Dein Browser unterstützt keine Standortabfrage.");return}
+  if(!window.isSecureContext){alert("Standortabfrage braucht eine gesicherte (https) oder lokale Seite. Suche bitte einen Ort.");return}
   $("#geo").textContent="…";
   navigator.geolocation.getCurrentPosition(async pos=>{
     const {latitude:lat,longitude:lon}=pos.coords;let name="Mein Standort",sub="";
@@ -180,11 +215,11 @@ function warns(n){
   const dl=cache.daily,w=[],code=dl.weather_code[n],lo=dl.temperature_2m_min[n],rain=dl.precipitation_sum[n]||0,pp=dl.precipitation_probability_max[n]??0,snow=dl.snowfall_sum[n]||0;
   if(code>=95)w.push(["⛈️","Gewitter erwartet",1]);
   if(FZ.includes(code)||(lo<=0&&(rain>0.1||code==45||code==48)))w.push(["🧊","Glättegefahr durch Frost oder gefrierenden Niederschlag",1]);
-  if(SN.includes(code)||snow>0.2)w.push(["🌨️","Schnee erwartet"+(snow>0.2?` (${snow.toFixed(1)} cm)`:"")]);
+  if(SN.includes(code)||snow>0.2)w.push(["🌨️","Schnee erwartet"+(snow>0.2?` (${fx(snow)} cm)`:"")]);
   if(!SN.includes(code)){
     const hp=cache.hourly.precipitation.slice(24*n,24*n+24).map(v=>v||0),rh=hp.filter(v=>v>=0.1).length,mx=Math.max(...hp);
-    if(rh>=6&&rain>=3)w.push(["🌧️",`Regentag: anhaltender Regen, ${rain.toFixed(1)} mm in etwa ${rh} Stunden`]);
-    if(mx>=3)w.push(["🌦️",`Schauer: kräftiger Regen, bis zu ${mx.toFixed(1)} mm pro Stunde`]);
+    if(rh>=6&&rain>=3)w.push(["🌧️",`Regentag: anhaltender Regen, ${fx(rain)} mm in etwa ${rh} Stunden`]);
+    if(mx>=3)w.push(["🌦️",`Schauer: kräftiger Regen, bis zu ${fx(mx)} mm pro Stunde`]);
   }
   if(lo<0)w.push(["🥶",`Temperatur sinkt unter 0 °C (Tiefstwert ${Math.round(lo)} °C)`,1]);
   const po=pollen[dl.time[n]];if(po)w.push(["🤧","Erhöhter Pollenflug: "+Object.keys(po).join(", ")]);
@@ -198,30 +233,35 @@ function pressureChart(h,idx){
   const x=i=>L+i*(W-L-R)/(p.length-1),y=v=>T+(1-(v-mn)/(mx-mn))*(H-T-B);
   const pts=p.map((v,i)=>x(i).toFixed(1)+","+y(v).toFixed(1));
   const line="M"+pts.join(" L"),area=line+` L${x(p.length-1)},${H-B} L${x(0)},${H-B}Z`;
-  const trend=p[idx]-p[idx-3],tt=Math.abs(trend)<1?"stabil":trend>0?"steigend":"fallend";
+  const ci=Math.max(idx,0),pi=Math.max(idx-3,0);
+  const trend=p[ci]-p[pi],tt=Math.abs(trend)<1?"stabil":trend>0?"steigend":"fallend";
   const lab=(i,t)=>`<text x="${x(i)+4}" y="${H-8}" fill="var(--mu)" font-size="12">${t}</text>`;
-  return `<div class="chart"><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:1.3rem;font-weight:500">${Math.round(p[idx])} hPa</b><span class="mu">${tt} (${trend>0?"+":""}${trend.toFixed(1)} in 3 Std.)</span></div>
+  return `<div class="chart"><div style="display:flex;justify-content:space-between;align-items:baseline"><b style="font-size:1.3rem;font-weight:500">${Math.round(p[ci])} hPa</b><span class="mu">${tt} (${trend>0?"+":""}${fx(trend)} in 3 Std.)</span></div>
   <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Luftdruckverlauf von gestern bis morgen">
   <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--ac)" stop-opacity=".25"/><stop offset="1" stop-color="var(--ac)" stop-opacity="0"/></linearGradient></defs>
   <path d="${area}" fill="url(#g)"/><path d="${line}" fill="none" stroke="var(--ac)" stroke-width="2.5" stroke-linejoin="round"/>
   <line x1="${x(24)}" x2="${x(24)}" y1="${T}" y2="${H-B}" stroke="var(--ln)"/><line x1="${x(48)}" x2="${x(48)}" y1="${T}" y2="${H-B}" stroke="var(--ln)"/>
-  <line x1="${x(idx)}" x2="${x(idx)}" y1="${T}" y2="${H-B}" stroke="var(--sun)" stroke-dasharray="4 4"/><circle cx="${x(idx)}" cy="${y(p[idx])}" r="5" fill="var(--sun)"/>
+  <line x1="${x(ci)}" x2="${x(ci)}" y1="${T}" y2="${H-B}" stroke="var(--sun)" stroke-dasharray="4 4"/><circle cx="${x(ci)}" cy="${y(p[ci])}" r="5" fill="var(--sun)"/>
   <text x="${x(0)}" y="${T-3}" fill="var(--mu)" font-size="12">${Math.round(Math.max(...p))}</text><text x="${x(0)}" y="${H-B+14}" fill="var(--mu)" font-size="12" opacity="0">.</text>
   ${lab(0,"Gestern")}${lab(24,"Heute")}${lab(48,"Morgen")}</svg></div>`;
 }
 
 function render(){
   const d=cache,c=d.current,h=d.hourly,dl=d.daily;
-  const idx=h.time.indexOf(c.time.slice(0,13)+":00");
-  const [em,tx]=wc(c.weather_code),i=1; // dl-Index 1 = heute
-  const hours=[1,2,3].map(n=>{const j=idx+n,[e,t]=wc(h.weather_code[j]);return `<div class="box"><span class="mu">${hm(h.time[j])} Uhr</span><div class="e">${e}</div><b>${t0(h.temperature_2m[j])}</b><div class="mu">${t}<br>${Math.round(h.wind_speed_10m[j])} km/h · ${h.precipitation_probability[j]??0} %</div></div>`}).join("");
+  let idx=h.time.indexOf(c.time.slice(0,13)+":00");
+  if(idx<0)idx=h.time.length-1; // Fallback: letzte bekannte Stunde
+  const [em,tx]=wc(c.weather_code);
+  const hours=[1,2,3].map(n=>{
+    const j=Math.min(idx+n,h.time.length-1),[e,t]=wc(h.weather_code[j]);
+    return `<div class="box"><span class="mu">${hm(h.time[j])} Uhr</span><div class="e">${e}</div><b>${t0(h.temperature_2m[j])}</b><div class="mu">${t}<br>${Math.round(h.wind_speed_10m[j])} km/h · ${h.precipitation_probability[j]??0} %</div></div>`
+  }).join("");
   const names=["Heute","Morgen"];
-  const d3=[1,2,3].map(n=>{const [e,t]=wc(dl.weather_code[n]);return `<div class="box"><span class="mu">${n<3?names[n-1]:day(dl.time[n],{weekday:"long"})}</span><div class="e">${e}</div><b>${t0(dl.temperature_2m_max[n])}</b> <span class="mu">${t0(dl.temperature_2m_min[n])}</span><div class="mu">${t}<br>Regen ${dl.precipitation_probability_max[n]??0} % · ${dl.precipitation_sum[n].toFixed(1)} mm<br>Wind bis ${Math.round(dl.wind_speed_10m_max[n])} km/h</div></div>`}).join("");
+  const d3=[1,2,3].map(n=>{const [e,t]=wc(dl.weather_code[n]);return `<div class="box"><span class="mu">${n<3?names[n-1]:day(dl.time[n],{weekday:"long"})}</span><div class="e">${e}</div><b>${t0(dl.temperature_2m_max[n])}</b> <span class="mu">${t0(dl.temperature_2m_min[n])}</span><div class="mu">${t}<br>Regen ${dl.precipitation_probability_max[n]??0} % · ${fx(dl.precipitation_sum[n])} mm<br>Wind bis ${Math.round(dl.wind_speed_10m_max[n])} km/h</div></div>`}).join("");
   const gmin=Math.min(...dl.temperature_2m_min.slice(1)),gmax=Math.max(...dl.temperature_2m_max.slice(1));
   const d14=dl.time.slice(1).map((t,k)=>{const n=k+1,[e,tt]=wc(dl.weather_code[n]),lo=dl.temperature_2m_min[n],hi=dl.temperature_2m_max[n],ww=warns(n),pp=dl.precipitation_probability_max[n]??0;
     const a=(lo-gmin)/(gmax-gmin)*100,b=(hi-gmin)/(gmax-gmin)*100;
     return `<details class="day"><summary><span>${n==1?"Heute":day(t,{weekday:"short",day:"numeric",month:"numeric"})}${ww.length?" ⚠️":""}</span><span class="ic">${e}</span><div><div class="bar"><i style="left:${a}%;right:${100-b}%"></i></div><div class="rng"><span>${tt}</span><span>${pp} % Regen</span></div></div><b style="font-weight:500;text-align:right">${t0(lo)} / ${t0(hi)}</b></summary>
-    <div class="dbody">${wHtml(ww)}<div class="facts"><div><span>Niederschlag</span>${dl.precipitation_sum[n].toFixed(1)} mm</div><div><span>Wind bis</span>${Math.round(dl.wind_speed_10m_max[n])} km/h</div><div><span>UV-Index</span>${Math.round(dl.uv_index_max[n])}</div><div><span>Sonne</span>${hm(dl.sunrise[n])} bis ${hm(dl.sunset[n])} Uhr</div></div></div></details>`}).join("");
+    <div class="dbody">${wHtml(ww)}<div class="facts"><div><span>Niederschlag</span>${fx(dl.precipitation_sum[n])} mm</div><div><span>Wind bis</span>${Math.round(dl.wind_speed_10m_max[n])} km/h</div><div><span>UV-Index</span>${Math.round(dl.uv_index_max[n])}</div><div><span>Sonne</span>${hm(dl.sunrise[n])} bis ${hm(dl.sunset[n])} Uhr</div></div></div></details>`}).join("");
   const w1=warns(1),w2=warns(2);
   const banner=(w1.length||w2.length)?(w1.length?`<div class="mu" style="margin:14px 2px -6px">Heute</div>${wHtml(w1)}`:"")+(w2.length?`<div class="mu" style="margin:14px 2px -6px">Morgen</div>${wHtml(w2)}`:""):`<p class="mu" style="margin:14px 2px 0">Keine Warnungen für heute und morgen.</p>`;
   $("#app").innerHTML=`
@@ -245,7 +285,7 @@ function render(){
   $("#sec14").addEventListener("toggle",e=>{open14=e.target.open});
   $("#fav").onclick=()=>{
     if(isFav()){favs=favs.filter(f=>pid(f)!=pid(place));if(!favs.length)favs=[place];if(!favs.some(f=>pid(f)==def))def=pid(favs[0])}
-    else favs.push(place);
+    else if(!favs.some(f=>pid(f)==pid(place)))favs.push(place);
     save();renderFavs();render();
   };
   if($("#def"))$("#def").onclick=()=>{def=pid(place);save();renderFavs();render()};
