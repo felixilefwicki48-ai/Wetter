@@ -53,6 +53,9 @@ summary::-webkit-details-marker{display:none}
 .dbody{padding:2px 0 12px}
 .dbody .facts{margin-top:8px;border-top:0;padding-top:0}
 .warn{display:grid;gap:8px;margin-top:14px}
+.leg{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px 12px;padding:12px 0 14px;border-top:1px solid var(--ln);font-size:.88rem;color:var(--mu)}
+.leg b{grid-column:1/-1;font-weight:600;color:var(--tx)}
+.leg .i{font-size:1.2rem;margin-right:6px}
 .w{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:14px 14px 14px 4px;background:rgba(217,142,31,.16);border-left:4px solid var(--sun);font-size:.93rem}
 .w.hi{background:rgba(192,57,43,.15);border-left-color:#c0392b}
 .bar{position:relative;height:6px;border-radius:3px;background:var(--ln)}
@@ -78,6 +81,9 @@ footer{margin:26px 0 8px;text-align:center;font-size:.8rem;color:var(--mu)}
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const WC=[[0,"☀️","Klar"],[1,"🌤️","Überwiegend klar"],[2,"⛅","Wolkig"],[3,"☁️","Bedeckt"],[45,"🌫️","Nebel"],[48,"🌫️","Reifnebel"],[51,"🌦️","Nieselregen"],[53,"🌦️","Nieselregen"],[55,"🌦️","Starker Nieselregen"],[56,"🌧️","Gefrierender Niesel"],[57,"🌧️","Gefrierender Niesel"],[61,"🌧️","Leichter Regen"],[63,"🌧️","Regen"],[65,"🌧️","Starkregen"],[66,"🌧️","Gefrierender Regen"],[67,"🌧️","Gefrierender Regen"],[71,"🌨️","Leichter Schneefall"],[73,"🌨️","Schneefall"],[75,"❄️","Starker Schneefall"],[77,"🌨️","Schneegriesel"],[80,"🌦️","Schauer"],[81,"🌦️","Schauer"],[82,"⛈️","Starke Schauer"],[85,"🌨️","Schneeschauer"],[86,"🌨️","Schneeschauer"],[95,"⛈️","Gewitter"],[96,"⛈️","Gewitter mit Hagel"],[99,"⛈️","Gewitter mit Hagel"]];
+const LEG=[["☀️","Klar"],["🌤️","Überwiegend klar"],["⛅","Wolkig"],["☁️","Bedeckt"],["🌫️","Nebel"],["🌦️","Nieselregen, Schauer"],["🌧️","Regen"],["🌨️","Schnee, Schneeschauer"],["❄️","Starker Schneefall"],["⛈️","Gewitter, starke Schauer"]];
+const LEGW=[["⚠️","Für diesen Tag liegt eine Warnung vor"],["🧊","Glättegefahr"],["🥶","Frost unter 0 °C"],["🤧","Erhöhter Pollenflug"]];
+const legend=`<div class="leg"><b>Wetter-Icons (Tagesbild = markantestes Wetter des Tages)</b>${LEG.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}<b>Warnungen</b>${LEGW.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}</div>`;
 const wc=c=>WC.find(x=>x[0]==c)||[0,"❔","–"];
 const t0=v=>Math.round(v)+"°";
 const dir=d=>["N","NO","O","SO","S","SW","W","NW"][Math.round(d/45)%8];
@@ -221,7 +227,7 @@ function render(){
   <h2>Nächste 3 Stunden</h2><div class="row">${hours}</div>
   <h2>Nächste 3 Tage</h2><div class="row d3">${d3}</div>
   <h2>Luftdruck von gestern bis morgen</h2>${pressureChart(h,idx)}
-  <details class="sec" id="sec14" ${open14?"open":""}><summary>14-Tage-Vorhersage</summary>${d14}</details>`;
+  <details class="sec" id="sec14" ${open14?"open":""}><summary>14-Tage-Vorhersage</summary>${d14}${legend}</details>`;
   $("#sec14").addEventListener("toggle",e=>{open14=e.target.open});
   $("#fav").onclick=()=>{
     if(isFav()){favs=favs.filter(f=>pid(f)!=pid(place));if(!favs.length)favs=[place];if(!favs.some(f=>pid(f)==def))def=pid(favs[0])}
