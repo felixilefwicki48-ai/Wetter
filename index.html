@@ -27,9 +27,10 @@ button:hover{border-color:var(--ac)}
 .hero{margin-top:12px;padding:24px 22px;border-radius:28px 28px 28px 8px;background:var(--card)}
 .hero h1{font-size:1.05rem;font-weight:500;display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
 .hero .actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.temp{display:flex;align-items:center;gap:14px;margin:14px 0 4px}
-.temp b{font-size:5.2rem;line-height:1;font-weight:500;letter-spacing:-.04em}
-.temp span{font-size:3.6rem}
+.temp{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:14px 0 4px}
+.temp b{display:block;font-size:5.2rem;line-height:1;font-weight:500;letter-spacing:-.04em}
+.temp .big{font-size:5.6rem;line-height:1}
+.fl{color:var(--mu);margin-top:8px}
 .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--ln);font-size:.92rem}
 .facts div span{display:block;color:var(--mu);font-size:.82rem}
 h2{font-size:1.05rem;font-weight:600;margin:26px 2px 10px}
@@ -48,12 +49,15 @@ summary::-webkit-details-marker{display:none}
 .sec>summary::after{content:"▾";color:var(--mu);transition:transform .2s}
 .sec[open]>summary::after{transform:rotate(180deg)}
 .day{border-top:1px solid var(--ln)}
-.day>summary{display:grid;grid-template-columns:84px 36px 1fr 68px;gap:10px;align-items:center;padding:9px 0;font-size:.95rem}
+.day>summary{display:grid;grid-template-columns:84px 36px 1fr 96px;gap:10px;align-items:center;padding:9px 0;font-size:.95rem}
 .ic{font-size:1.6rem;line-height:1}
+.day>summary b{white-space:nowrap}
 .dbody{padding:2px 0 12px}
 .dbody .facts{margin-top:8px;border-top:0;padding-top:0}
 .warn{display:grid;gap:8px;margin-top:14px}
 .leg{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px 12px;padding:12px 0 14px;border-top:1px solid var(--ln);font-size:.88rem;color:var(--mu)}
+.foot h2{font-size:.95rem}
+.foot .leg{border-top:0;padding:0 2px 6px}
 .leg b{grid-column:1/-1;font-weight:600;color:var(--tx)}
 .leg .i{font-size:1.2rem;margin-right:6px}
 .w{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:14px 14px 14px 4px;background:rgba(217,142,31,.16);border-left:4px solid var(--sun);font-size:.93rem}
@@ -63,7 +67,7 @@ summary::-webkit-details-marker{display:none}
 .rng{display:flex;justify-content:space-between;font-size:.82rem;color:var(--mu);margin-top:3px}
 .msg{padding:30px 6px;color:var(--mu)}
 footer{margin:26px 0 8px;text-align:center;font-size:.8rem;color:var(--mu)}
-@media(max-width:480px){.temp b{font-size:4.2rem}.day>summary{grid-template-columns:70px 32px 1fr 58px;gap:8px}.row{gap:8px}}
+@media(max-width:480px){.temp b{font-size:4rem}.temp .big{font-size:4.6rem}.day>summary{grid-template-columns:64px 30px 1fr 86px;gap:8px;font-size:.9rem}.row{gap:8px}}
 @media(prefers-reduced-motion:no-preference){#app{animation:in .4s ease}@keyframes in{from{opacity:.3}}}
 </style>
 </head>
@@ -83,9 +87,9 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 const WC=[[0,"☀️","Klar"],[1,"🌤️","Überwiegend klar"],[2,"⛅","Wolkig"],[3,"☁️","Bedeckt"],[45,"🌫️","Nebel"],[48,"🌫️","Reifnebel"],[51,"🌦️","Nieselregen"],[53,"🌦️","Nieselregen"],[55,"🌦️","Starker Nieselregen"],[56,"🌧️","Gefrierender Niesel"],[57,"🌧️","Gefrierender Niesel"],[61,"🌧️","Leichter Regen"],[63,"🌧️","Regen"],[65,"🌧️","Starkregen"],[66,"🌧️","Gefrierender Regen"],[67,"🌧️","Gefrierender Regen"],[71,"🌨️","Leichter Schneefall"],[73,"🌨️","Schneefall"],[75,"❄️","Starker Schneefall"],[77,"🌨️","Schneegriesel"],[80,"🌦️","Schauer"],[81,"🌦️","Schauer"],[82,"⛈️","Starke Schauer"],[85,"🌨️","Schneeschauer"],[86,"🌨️","Schneeschauer"],[95,"⛈️","Gewitter"],[96,"⛈️","Gewitter mit Hagel"],[99,"⛈️","Gewitter mit Hagel"]];
 const LEG=[["☀️","Klar"],["🌤️","Überwiegend klar"],["⛅","Wolkig"],["☁️","Bedeckt"],["🌫️","Nebel"],["🌦️","Nieselregen, Schauer"],["🌧️","Regen"],["🌨️","Schnee, Schneeschauer"],["❄️","Starker Schneefall"],["⛈️","Gewitter, starke Schauer"]];
 const LEGW=[["⚠️","Für diesen Tag liegt eine Warnung vor"],["🧊","Glättegefahr"],["🥶","Frost unter 0 °C"],["🤧","Erhöhter Pollenflug"]];
-const legend=`<div class="leg"><b>Wetter-Icons (Tagesbild = markantestes Wetter des Tages)</b>${LEG.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}<b>Warnungen</b>${LEGW.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}</div>`;
+const legend=`<div class="leg"><b>Wetter (das Tages-Icon zeigt das markanteste Wetter des Tages)</b>${LEG.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}<b>Warnungen</b>${LEGW.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}</div>`;
 const wc=c=>WC.find(x=>x[0]==c)||[0,"❔","–"];
-const t0=v=>Math.round(v)+"°";
+const t0=v=>Math.round(v)+"°C";
 const dir=d=>["N","NO","O","SO","S","SW","W","NW"][Math.round(d/45)%8];
 const hm=s=>s.slice(11,16);
 const day=(s,f)=>new Date(s+"T12:00").toLocaleDateString("de-DE",f);
@@ -172,7 +176,7 @@ function warns(n){
     if(rh>=6&&rain>=3)w.push(["🌧️",`Regentag: anhaltender Regen, ${rain.toFixed(1)} mm in etwa ${rh} Stunden`]);
     if(mx>=3)w.push(["🌦️",`Schauer: kräftiger Regen, bis zu ${mx.toFixed(1)} mm pro Stunde`]);
   }
-  if(lo<0)w.push(["🥶",`Temperatur sinkt unter 0 °C (Tiefstwert ${Math.round(lo)}°)`,1]);
+  if(lo<0)w.push(["🥶",`Temperatur sinkt unter 0 °C (Tiefstwert ${Math.round(lo)} °C)`,1]);
   const po=pollen[dl.time[n]];if(po)w.push(["🤧","Erhöhter Pollenflug: "+Object.keys(po).join(", ")]);
   return w;
 }
@@ -213,8 +217,7 @@ function render(){
   $("#app").innerHTML=`
   <section class="hero"><h1><span>${esc(place.name)}<br><span class="mu" style="font-size:.85rem">${esc(place.sub||"")}</span></span>
     <span class="actions"><button id="fav">${isFav()?"★ Favorit":"☆ Merken"}</button>${isFav()&&pid(place)!=def?`<button id="def">Als Standard</button>`:""}</span></h1>
-    <div class="temp"><span>${em}</span><b>${t0(c.temperature_2m)}</b></div>
-    <div>${tx}, gefühlt ${t0(c.apparent_temperature)}</div>
+    <div class="temp"><div><b>${t0(c.temperature_2m)}</b><div class="fl">gefühlt: ${t0(c.apparent_temperature)}</div></div><span class="big" role="img" aria-label="${tx}" title="${tx}">${em}</span></div>
     <div class="facts">
       <div><span>Wind</span>${Math.round(c.wind_speed_10m)} km/h aus ${dir(c.wind_direction_10m)}</div>
       <div><span>Böen</span>${Math.round(c.wind_gusts_10m)} km/h</div>
@@ -227,7 +230,8 @@ function render(){
   <h2>Nächste 3 Stunden</h2><div class="row">${hours}</div>
   <h2>Nächste 3 Tage</h2><div class="row d3">${d3}</div>
   <h2>Luftdruck von gestern bis morgen</h2>${pressureChart(h,idx)}
-  <details class="sec" id="sec14" ${open14?"open":""}><summary>14-Tage-Vorhersage</summary>${d14}${legend}</details>`;
+  <details class="sec" id="sec14" ${open14?"open":""}><summary>14-Tage-Vorhersage</summary>${d14}</details>
+  <section class="foot"><h2>Icon-Legende</h2>${legend}</section>`;
   $("#sec14").addEventListener("toggle",e=>{open14=e.target.open});
   $("#fav").onclick=()=>{
     if(isFav()){favs=favs.filter(f=>pid(f)!=pid(place));if(!favs.length)favs=[place];if(!favs.some(f=>pid(f)==def))def=pid(favs[0])}
