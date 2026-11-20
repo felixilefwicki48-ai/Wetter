@@ -18,7 +18,7 @@ button:hover{border-color:var(--ac)}
 .search{position:relative;display:flex;gap:8px}
 .search input{flex:1;min-width:0;background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:11px 14px}
 .search button{border-radius:14px;background:var(--card)}
-#res{position:absolute;top:100%;left:0;right:56px;z-index:5;background:var(--card);border:1px solid var(--ln);border-radius:14px;margin-top:6px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+#res{position:absolute;top:100%;left:0;right:104px;z-index:5;background:var(--card);border:1px solid var(--ln);border-radius:14px;margin-top:6px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.15)}
 #res button{display:block;width:100%;text-align:left;border:0;border-radius:0;padding:10px 14px;border-bottom:1px solid var(--ln)}
 #res small,.mu{color:var(--mu)}
 #favs{display:flex;gap:8px;overflow-x:auto;padding:12px 0 4px}
@@ -68,18 +68,20 @@ summary::-webkit-details-marker{display:none}
 .msg{padding:30px 6px;color:var(--mu)}
 footer{margin:26px 0 8px;text-align:center;font-size:.8rem;color:var(--mu)}
 @media(max-width:480px){.temp b{font-size:4rem}.temp .big{font-size:4.6rem}.day>summary{grid-template-columns:64px 30px 1fr 86px;gap:8px;font-size:.9rem}.row{gap:8px}}
-@media(prefers-reduced-motion:no-preference){#app{animation:in .4s ease}@keyframes in{from{opacity:.3}}}
+#ref:disabled{opacity:.5}
+@media(prefers-reduced-motion:no-preference){#ref.spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}#app{animation:in .4s ease}@keyframes in{from{opacity:.3}}}
 </style>
 </head>
 <body>
 <div class="search">
   <input id="q" type="search" placeholder="Ort oder PLZ suchen" autocomplete="off" aria-label="Ort oder PLZ suchen">
   <button id="geo" title="Meinen Standort verwenden" aria-label="Meinen Standort verwenden">📍</button>
+  <button id="ref" title="Wetterdaten aktualisieren" aria-label="Wetterdaten aktualisieren">↻</button>
   <div id="res" hidden></div>
 </div>
 <div id="favs"></div>
 <main id="app"><p class="msg">Lade Wetter …</p></main>
-<footer>Daten: <a href="https://open-meteo.com/" style="color:inherit">Open-Meteo</a></footer>
+<footer>Daten: <a href="https://open-meteo.com/" style="color:inherit">Open-Meteo</a><span id="stand"></span></footer>
 
 <script>
 const $=s=>document.querySelector(s);
@@ -146,13 +148,21 @@ $("#geo").onclick=()=>{
 };
 
 /* Wetterdaten laden */
-async function load(p){
-  place=p;renderFavs();$("#app").innerHTML=`<p class="msg">Lade Wetter für ${esc(p.name)} …</p>`;
+let okPlace=null;
+const setStand=m=>{$("#stand").textContent=m};
+$("#ref").onclick=()=>{if(place)load(place,okPlace===pid(place))};
+async function load(p,silent){
+  place=p;renderFavs();if(!silent)$("#app").innerHTML=`<p class="msg">Lade Wetter für ${esc(p.name)} …</p>`;
+  $("#ref").classList.add("spin");$("#ref").disabled=true;
   const u=`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl&hourly=temperature_2m,weather_code,wind_speed_10m,precipitation_probability,pressure_msl,precipitation&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max,snowfall_sum&timezone=auto&past_days=1&forecast_days=14&wind_speed_unit=kmh`;
   try{
-    const [r,pl]=await Promise.all([fetch(u),loadPollen(p)]);if(!r.ok)throw 0;
-    cache=await r.json();pollen=pl;render();
-  }catch(e){$("#app").innerHTML=`<p class="msg">Wetterdaten konnten nicht geladen werden. Prüfe deine Verbindung und tippe auf „Neu laden“.</p><button onclick="load(place)">Neu laden</button>`}
+    const [r,pl]=await Promise.all([fetch(u,{cache:"no-store"}),loadPollen(p)]);if(!r.ok)throw 0;
+    cache=await r.json();pollen=pl;okPlace=pid(p);render();
+    setStand(" · Stand: "+new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})+" Uhr");
+  }catch(e){
+    if(silent)setStand(" · Aktualisierung fehlgeschlagen, bitte Verbindung prüfen");
+    else $("#app").innerHTML=`<p class="msg">Wetterdaten konnten nicht geladen werden. Prüfe deine Verbindung und tippe oben auf ↻.</p>`;
+  }finally{$("#ref").classList.remove("spin");$("#ref").disabled=false}
 }
 
 let pollen={},open14=false;
