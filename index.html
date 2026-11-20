@@ -196,8 +196,8 @@ async function load(p,silent){
   $("#ref").classList.add("spin");$("#ref").disabled=true;
   const u=`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl&hourly=temperature_2m,weather_code,wind_speed_10m,precipitation_probability,pressure_msl,precipitation&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max,snowfall_sum&timezone=auto&past_days=1&forecast_days=14&wind_speed_unit=kmh`;
   try{
-    const [r,pl]=await Promise.all([fetch(u,{cache:"no-store"}),loadPollen(p)]);if(!r.ok)throw 0;
-    cache=await r.json();pollen=pl;okPlace=pid(p);render();
+    const [r,pl,rn]=await Promise.all([fetch(u,{cache:"no-store"}),loadPollen(p),loadRain(p)]);if(!r.ok)throw 0;
+    cache=await r.json();pollen=pl;rain15=rn;okPlace=pid(p);render();
     setStand(" · Stand: "+new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})+" Uhr");
   }catch(e){
     if(silent)setStand(" · Aktualisierung fehlgeschlagen, bitte Verbindung prüfen");
@@ -205,7 +205,34 @@ async function load(p,silent){
   }finally{$("#ref").classList.remove("spin");$("#ref").disabled=false}
 }
 
-let pollen={},open14=false;
+let pollen={},open14=false,rain15=null,openRain=false;
+/* Regen in 15-Minuten-Schritten (Open-Meteo, in Mitteleuropa DWD ICON-D2) */
+async function loadRain(p){
+  try{
+    const r=await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&minutely_15=precipitation&past_minutely_15=4&forecast_minutely_15=6&timezone=auto`,{cache:"no-store"})).json();
+    return r.minutely_15&&r.minutely_15.time?r.minutely_15:null;
+  }catch(e){return null}
+}
+function rainBox(m,now){
+  if(!m||!m.time)return "";
+  let mi=-1;m.time.forEach((t,i)=>{if(t<=now)mi=i});
+  const ix=[0,1,2,3,4,5,6,7].map(k=>mi-3+k);
+  if(mi<0||ix.some(i=>i<0||i>=m.time.length))return "";
+  const v=ix.map(i=>m.precipitation[i]||0),sum=a=>a.reduce((x,y)=>x+y,0),sp=sum(v.slice(0,4)),sn=sum(v.slice(4));
+  const W=420,H=130,L=6,T=22,B=22,bw=(W-2*L)/8,mx=Math.max(0.5,...v),ch=H-T-B,nx=L+4*bw;
+  const bars=v.map((x,k)=>{
+    const h=x>0.01?Math.max(2,x/mx*ch):0,bx=L+k*bw+bw*.15,cx=bx+bw*.35;
+    return `<rect x="${bx}" y="${T+ch-h}" width="${bw*.7}" height="${h}" rx="3" fill="${k<4?"var(--mu)":"var(--ac)"}" opacity="${k<4?.55:1}"/>`
+      +(x>=0.1?`<text x="${cx}" y="${T+ch-h-4}" text-anchor="middle" font-size="11" fill="var(--tx)">${fx(x)}</text>`:"")
+      +`<text x="${cx}" y="${H-6}" text-anchor="middle" font-size="11" fill="var(--mu)">${hm(m.time[ix[k]])}</text>`;
+  }).join("");
+  return `<details class="sec" id="secRain" ${openRain?"open":""}><summary><span>Regen: letzte und nächste Stunde <span class="mu" style="font-weight:400;font-size:.85rem">· nächste Std.: ${sn<0.05?"trocken":fx(sn)+" mm"}</span></span></summary>
+  <div class="dbody"><div class="facts"><div><span>Letzte Stunde</span>${fx(sp)} mm</div><div><span>Nächste Stunde</span>${fx(sn)} mm</div></div>
+  <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Niederschlag in 15-Minuten-Schritten, letzte und nächste Stunde" style="width:100%;height:auto;display:block;margin-top:8px">
+  <line x1="${L}" x2="${W-L}" y1="${T+ch}" y2="${T+ch}" stroke="var(--ln)"/>${bars}
+  <line x1="${nx}" x2="${nx}" y1="${T-6}" y2="${T+ch}" stroke="var(--sun)" stroke-dasharray="4 4"/><text x="${nx}" y="10" text-anchor="middle" font-size="11" fill="var(--sun)">Jetzt</text></svg>
+  <p class="mu" style="font-size:.8rem;margin-top:6px">Jeder Balken zeigt den Niederschlag in den 15 Minuten bis zur angegebenen Uhrzeit (1 mm = 1 Liter pro m²). Es sind Modellwerte, kein Radar. In Mitteleuropa stammen sie in 15-Minuten-Auflösung vom DWD-Modell ICON-D2, anderswo ggf. aus Stundenwerten umgerechnet.</p></div></details>`;
+}
 async function loadPollen(p){
   try{
     const r=await(await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${p.lat}&longitude=${p.lon}&hourly=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto&forecast_days=5`)).json();
@@ -283,11 +310,13 @@ function render(){
     </div></section>
   ${banner}
   <h2>Nächste 3 Stunden</h2><div class="row">${hours}</div>
+  ${rainBox(rain15,c.time)}
   <h2>Nächste 3 Tage</h2><div class="row d3">${d3}</div>
   <h2>Luftdruck von gestern bis morgen</h2>${pressureChart(h,idx)}
   <details class="sec" id="sec14" ${open14?"open":""}><summary>14-Tage-Vorhersage</summary>${d14}</details>
   <section class="foot"><h2>Icon-Legende</h2>${legend}</section>`;
   $("#sec14").addEventListener("toggle",e=>{open14=e.target.open});
+  const sr=$("#secRain");if(sr)sr.addEventListener("toggle",e=>{openRain=e.target.open});
   $("#fav").onclick=()=>{
     if(isFav()){favs=favs.filter(f=>pid(f)!=pid(place));if(!favs.length)favs=[place];if(!favs.some(f=>pid(f)==def))def=pid(favs[0])}
     else if(!favs.some(f=>pid(f)==pid(place)))favs.push(place);
