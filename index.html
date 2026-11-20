@@ -88,7 +88,7 @@ const WC=[[0,"☀️","Klar"],[1,"🌤️","Überwiegend klar"],[2,"⛅","Wolkig
 const LEG=[["☀️","Klar"],["🌤️","Überwiegend klar"],["⛅","Wolkig"],["☁️","Bedeckt"],["🌫️","Nebel"],["🌦️","Nieselregen, Schauer"],["🌧️","Regen"],["🌨️","Schnee, Schneeschauer"],["❄️","Starker Schneefall"],["⛈️","Gewitter, starke Schauer"]];
 const LEGW=[["⚠️","Für diesen Tag liegt eine Warnung vor"],["🧊","Glättegefahr"],["🥶","Frost unter 0 °C"],["🤧","Erhöhter Pollenflug"]];
 const legend=`<div class="leg"><b>Wetter (das Tages-Icon zeigt das markanteste Wetter des Tages)</b>${LEG.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}<b>Warnungen</b>${LEGW.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}</div>`;
-const wc=c=>WC.find(x=>x[0]==c)||[0,"❔","–"];
+const wc=c=>{const r=WC.find(x=>x[0]==c)||[0,"❔","–"];return [r[1],r[2]]};
 const t0=v=>Math.round(v)+"°C";
 const dir=d=>["N","NO","O","SO","S","SW","W","NW"][Math.round(d/45)%8];
 const hm=s=>s.slice(11,16);
