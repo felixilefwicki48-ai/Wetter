@@ -36,6 +36,11 @@ button:hover{border-color:var(--ac)}
 .temp b{display:block;font-size:5.2rem;line-height:1;font-weight:500;letter-spacing:-.04em}
 .temp .big{font-size:5.6rem;line-height:1}
 .fl{color:var(--mu);margin-top:8px}
+.more{margin-top:16px;padding-top:12px;border-top:1px solid var(--ln)}
+.more>summary{display:flex;justify-content:space-between;align-items:center;font-size:.92rem;color:var(--mu)}
+.more>summary::after{content:"▾";transition:transform .2s}
+.more[open]>summary::after{transform:rotate(180deg)}
+.more .facts{margin-top:12px;padding-top:0;border-top:0}
 .today{display:flex;align-items:center;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--ln);font-size:.92rem}
 .today .ic{font-size:2.8rem;line-height:1}
 .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--ln);font-size:.92rem}
@@ -81,8 +86,11 @@ summary::-webkit-details-marker{display:none}
 .msg{padding:30px 6px;color:var(--mu)}
 footer{margin:26px 0 8px;text-align:center;font-size:.8rem;color:var(--mu)}
 @media(max-width:480px){.temp b{font-size:4rem}.temp .big{font-size:4.6rem}.day>summary{grid-template-columns:minmax(56px,64px) 30px 1fr minmax(70px,86px);gap:8px;font-size:.9rem}.row{gap:8px}}
+#ref{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;min-width:54px}
+#ref small{font-size:.62rem;color:var(--mu)}
+#ref .ri{display:inline-block}
 #ref:disabled{opacity:.5}
-@media(prefers-reduced-motion:no-preference){#ref.spin{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}#app{animation:in .4s ease}@keyframes in{from{opacity:.3}}}
+@media(prefers-reduced-motion:no-preference){#ref.spin .ri{animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}#app{animation:in .4s ease}@keyframes in{from{opacity:.3}}}
 </style>
 </head>
 <body>
@@ -94,7 +102,7 @@ footer{margin:26px 0 8px;text-align:center;font-size:.8rem;color:var(--mu)}
     <div id="res" role="listbox" hidden></div>
   </div>
   <button id="geo" title="Meinen Standort verwenden" aria-label="Meinen Standort verwenden">📍</button>
-  <button id="ref" title="Wetterdaten aktualisieren" aria-label="Wetterdaten aktualisieren">↻</button>
+  <button id="ref" title="Wetterdaten aktualisieren" aria-label="Wetterdaten aktualisieren"><span class="ri">↻</span><small id="refT"></small></button>
 </div>
 <div id="favs"></div>
 <main id="app"><p class="msg">Lade Wetter …</p></main>
@@ -213,7 +221,8 @@ async function load(p,silent){
   try{
     const [r,pl,rn]=await Promise.all([fetch(u,{cache:"no-store"}),loadPollen(p),loadRain(p)]);if(!r.ok)throw 0;
     cache=await r.json();pollen=pl;rain15=rn;okPlace=pid(p);render();
-    setStand(" · Stand: "+new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"})+" Uhr");
+    const tm=new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});
+    $("#refT").textContent=tm;$("#ref").title="Wetterdaten aktualisieren (zuletzt "+tm+" Uhr)";$("#ref").setAttribute("aria-label",$("#ref").title);setStand("");
   }catch(e){
     if(silent)setStand(" · Aktualisierung fehlgeschlagen, bitte Verbindung prüfen");
     else $("#app").innerHTML=`<p class="msg">Wetterdaten konnten nicht geladen werden. Prüfe deine Verbindung und tippe oben auf ↻.</p>`;
@@ -228,7 +237,7 @@ async function loadRain(p){
     return r.minutely_15&&r.minutely_15.time?r.minutely_15:null;
   }catch(e){return null}
 }
-let selDay=null;
+let selDay=null,openFacts=false;
 const PER=[["Morgens","6–9 Uhr",6,8],["Vormittags","9–12 Uhr",9,11],["Mittags","12–14 Uhr",12,13],["Nachmittags","14–18 Uhr",14,17],["Abends","18–22 Uhr",18,21]];
 function dayPanel(n){
   const h=cache.hourly,dl=cache.daily,nowI=h.time.indexOf(cache.current.time.slice(0,13)+":00");
@@ -270,8 +279,7 @@ function rainBox(m,now){
   <div tabindex="0" role="group" aria-label="Regendiagramm, seitlich scrollbar" style="overflow-x:auto;margin-top:8px;-webkit-overflow-scrolling:touch">
   <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Niederschlag in 15-Minuten-Schritten, letzte halbe Stunde und Vorhersage bis 6 Stunden" style="display:block;max-width:none">
   <line x1="${L}" x2="${W-R}" y1="${T+ch}" y2="${T+ch}" stroke="var(--ln)"/>${bars}
-  <line x1="${nx}" x2="${nx}" y1="${T-6}" y2="${T+ch}" stroke="var(--sun)" stroke-dasharray="4 4"/><text x="${nx}" y="10" text-anchor="middle" font-size="11" fill="var(--sun)">Jetzt</text></svg></div>
-  <p class="mu" style="font-size:.8rem;margin-top:6px">Zeitachse nach links wischen oder scrollen: Vorhersage bis +6 Stunden. Jeder Balken zeigt den Niederschlag in 15 Minuten bis zur Uhrzeit am rechten Balkenrand (1 mm = 1 Liter pro m²). Es sind Modellwerte, kein Radar. In Mitteleuropa stammen sie in 15-Minuten-Auflösung vom DWD-Modell ICON-D2, anderswo ggf. aus Stundenwerten umgerechnet.</p></div></details>`;
+  <line x1="${nx}" x2="${nx}" y1="${T-6}" y2="${T+ch}" stroke="var(--sun)" stroke-dasharray="4 4"/><text x="${nx}" y="10" text-anchor="middle" font-size="11" fill="var(--sun)">Jetzt</text></svg></div></div></details>`;
 }
 async function loadPollen(p){
   try{
@@ -325,10 +333,6 @@ function render(){
   let idx=h.time.indexOf(c.time.slice(0,13)+":00");
   if(idx<0){const d0=h.time.findIndex(t=>t.slice(0,10)==c.time.slice(0,10));idx=(d0<0?24:d0)+(+c.time.slice(11,13)||0)} // Fallback: Stunde von heute
   const [em,tx]=wc(c.weather_code);
-  const hours=[1,2,3].map(n=>{
-    const j=Math.min(idx+n,h.time.length-1),[e,t]=wc(h.weather_code[j]);
-    return `<div class="box"><span class="mu">${hm(h.time[j])} Uhr</span><div class="e">${e}</div><b>${t0(h.temperature_2m[j])}</b><div class="mu">${t}<br>${Math.round(h.wind_speed_10m[j])} km/h · ${h.precipitation_probability[j]??0} %</div></div>`
-  }).join("");
   const names=["Heute","Morgen"];
   const d3=[1,2,3].map(n=>{const [e,t]=wc(dl.weather_code[n]);return `<button type="button" class="box dbtn" data-n="${n}" aria-expanded="false" aria-controls="dayPanel"><span class="mu">${n<3?names[n-1]:day(dl.time[n],{weekday:"long"})}</span><div class="e">${e}</div><b>${t0(dl.temperature_2m_max[n])}</b> <span class="mu">${t0(dl.temperature_2m_min[n])}</span><div class="mu">${t}<br>Regen ${dl.precipitation_probability_max[n]??0} % · ${fx(dl.precipitation_sum[n])} mm<br>Wind bis ${Math.round(dl.wind_speed_10m_max[n])} km/h</div><div class="mu small" style="margin-top:6px">Tagesverlauf ▾</div></button>`}).join("");
   const gmin=Math.min(...dl.temperature_2m_min.slice(1)),gmax=Math.max(...dl.temperature_2m_max.slice(1));
@@ -342,17 +346,16 @@ function render(){
   <section class="hero"><h1><span>${esc(place.name)}<br><span class="mu" style="font-size:.85rem">${esc(place.sub||"")}</span></span>
     <span class="actions"><button id="fav">${isFav()?"★ Favorit":"☆ Merken"}</button>${isFav()&&pid(place)!=def?`<button id="def">Als Standard</button>`:""}</span></h1>
     <div class="temp"><div><b>${t0(c.temperature_2m)}</b><div class="fl">gefühlt: ${t0(c.apparent_temperature)}</div></div><span class="big" role="img" aria-label="${tx}" title="${tx}">${em}</span></div>
-    <div class="facts">
+    ${todayBox(dl,c)}
+    <details class="more" id="more" ${openFacts?"open":""}><summary>Wind, Böen, Luftfeuchte, UV-Index, Sonne</summary><div class="facts">
       <div><span>Wind</span>${Math.round(c.wind_speed_10m)} km/h aus ${dir(c.wind_direction_10m)}</div>
       <div><span>Böen</span>${Math.round(c.wind_gusts_10m)} km/h</div>
       <div><span>Luftfeuchte</span>${c.relative_humidity_2m} %</div>
       <div><span>UV-Index (max.)</span>${Math.round(dl.uv_index_max[1])}</div>
       <div><span>Sonnenaufgang</span>${hm(dl.sunrise[1])} Uhr</div>
       <div><span>Sonnenuntergang</span>${hm(dl.sunset[1])} Uhr</div>
-    </div>
-    ${todayBox(dl,c)}</section>
+    </div></details></section>
   ${banner}
-  <h2>Nächste 3 Stunden</h2><div class="row">${hours}</div>
   ${rainBox(rain15,c.time)}
   <h2>Nächste 3 Tage</h2><div class="row d3">${d3}</div>
   <div id="dayPanel" class="box" hidden style="margin-top:10px"></div>
@@ -360,6 +363,7 @@ function render(){
   <details class="sec" id="sec14" ${open14?"open":""}><summary>14-Tage-Vorhersage</summary>${d14}</details>
   <section class="foot"><h2>Icon-Legende</h2>${legend}</section>`;
   $("#sec14").addEventListener("toggle",e=>{open14=e.target.open});
+  const mo=$("#more");if(mo)mo.addEventListener("toggle",e=>{openFacts=e.target.open});
   const sr=$("#secRain");if(sr)sr.addEventListener("toggle",e=>{openRain=e.target.open});
   document.querySelectorAll(".dbtn").forEach(b=>b.onclick=()=>{const n=+b.dataset.n;selDay=selDay===n?null:n;showDay()});
   showDay();
