@@ -119,8 +119,12 @@ const LEGW=[["⚠️","Für diesen Tag liegt eine Warnung vor"],["🧊","Glätte
 const legend=`<div class="leg"><b>Wetter (das Tages-Icon zeigt das markanteste Wetter des Tages)</b>${LEG.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}<b>Warnungen</b>${LEGW.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}</div>`;
 const wc=c=>{const r=WC.find(x=>x[0]==c)||[0,"❔","–"];return [r[1],r[2]]};
 const RAINC=[51,53,55,61,63,65,80,81,82];
-/* Regen-Icon und -Text erst ab Mindestmenge: Tag 1,0 mm, Zeitraum im Tagesverlauf 0,3 mm; sonst Wolkig/Bedeckt */
-function dcode(dl,n){const c=dl.weather_code[n];return RAINC.includes(c)&&(dl.precipitation_sum[n]||0)<1?(c>=80?2:3):c}
+/* Regen-Icon und -Text erst ab Mindestmenge (Tag 1,0 mm, Zeitraum im Tagesverlauf 0,3 mm); darunter Schauer ab 10 % Regenwahrscheinlichkeit, sonst Wolkig/Bedeckt */
+function dcode(dl,n){
+  const c=dl.weather_code[n];
+  if(!RAINC.includes(c)||(dl.precipitation_sum[n]||0)>=1)return c;
+  return (dl.precipitation_probability_max[n]||0)>=10?80:(c>=80?2:3); // unter 1 mm: ab 10 % Wahrscheinlichkeit Schauer-Icon, sonst Wolkig/Bedeckt
+}
 const t0=v=>Math.round(v)+"°C";
 const BFT=[1,6,12,20,29,39,50,62,75,89,103,118],BFN=["Windstille","leiser Zug","leichte Brise","schwache Brise","mäßige Brise","frische Brise","starker Wind","steifer Wind","stürmischer Wind","Sturm","schwerer Sturm","orkanartiger Sturm","Orkan"];
 const bft=v=>BFT.filter(x=>v>=x).length;
@@ -247,7 +251,7 @@ function dayPanel(n){
   const title=n<3?["Heute","Morgen"][n-1]:day(dl.time[n],{weekday:"long"});
   const rows=PER.map(([nm,rng,f,t])=>{
     const ix=[];for(let k=f;k<=t;k++)ix.push(24*n+k);
-    const raw=Math.max(...ix.map(i=>h.weather_code[i]||0)),ps=ix.reduce((x,i)=>x+(h.precipitation[i]||0),0),code=RAINC.includes(raw)&&ps<0.3?(raw>=80?2:3):raw,[e,tx]=wc(code);
+    const raw=Math.max(...ix.map(i=>h.weather_code[i]||0)),ps=ix.reduce((x,i)=>x+(h.precipitation[i]||0),0),pm=Math.max(...ix.map(i=>h.precipitation_probability[i]||0)),code=RAINC.includes(raw)&&ps<0.3?(pm>=10?80:(raw>=80?2:3)):raw,[e,tx]=wc(code);
     const tmp=ix.map(i=>h.temperature_2m[i]),avg=tmp.reduce((a,b)=>a+b,0)/tmp.length;
     const pp=Math.max(...ix.map(i=>h.precipitation_probability[i]||0)),wd=Math.max(...ix.map(i=>h.wind_speed_10m[i]||0));
     const over=ix[ix.length-1]<nowI;
