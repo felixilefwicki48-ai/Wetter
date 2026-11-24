@@ -126,11 +126,15 @@ function ccode(c,h,idx){
   if(!RAINC.includes(k)||(c.precipitation||0)>=0.1)return k;
   return ((h.precipitation_probability[idx]||0)>=10)?80:(k>=80?2:3);
 }
-function dcode(dl,n){
-  const c=dl.weather_code[n];
-  if(!RAINC.includes(c)||(dl.precipitation_sum[n]||0)>=1)return c;
-  return (dl.precipitation_probability_max[n]||0)>=10?80:(c>=80?2:3); // unter 1 mm: ab 10 % Wahrscheinlichkeit Schauer-Icon, sonst Wolkig/Bedeckt
+/* Gemeinsame Icon-Regel (Tag und Tagesverlauf):
+   Regen-Code: Regen-Icon nur ab Mindestmenge, darunter Schauer ab SCH % Wahrscheinlichkeit, sonst Wolkig/Bedeckt.
+   Klar/Wolkig/Bedeckt: ab SCH % Regenwahrscheinlichkeit trotzdem Schauer-Icon. */
+const SCH=10;
+function soft(c,mm,minMm,pp){
+  if(RAINC.includes(c))return mm>=minMm?c:(pp>=SCH?80:(c>=80?2:3));
+  return (c<=3&&pp>=SCH)?80:c;
 }
+function dcode(dl,n){return soft(dl.weather_code[n],dl.precipitation_sum[n]||0,1,dl.precipitation_probability_max[n]||0)}
 const t0=v=>Math.round(v)+"°C";
 const BFT=[1,6,12,20,29,39,50,62,75,89,103,118],BFN=["Windstille","leiser Zug","leichte Brise","schwache Brise","mäßige Brise","frische Brise","starker Wind","steifer Wind","stürmischer Wind","Sturm","schwerer Sturm","orkanartiger Sturm","Orkan"];
 const bft=v=>BFT.filter(x=>v>=x).length;
@@ -258,7 +262,7 @@ function dayPanel(n){
   const dayRain=(dl.precipitation_sum[n]||0)>=1;
   const rows=PER.map(([nm,rng,f,t])=>{
     const ix=[];for(let k=f;k<=t;k++)ix.push(24*n+k);
-    const raw=Math.max(...ix.map(i=>h.weather_code[i]||0)),ps=ix.reduce((x,i)=>x+(h.precipitation[i]||0),0),pm=Math.max(...ix.map(i=>h.precipitation_probability[i]||0)),code=RAINC.includes(raw)&&!(dayRain&&ps>=0.3)?(pm>=10?80:(raw>=80?2:3)):raw,[e,tx]=wc(code);
+    const raw=Math.max(...ix.map(i=>h.weather_code[i]||0)),ps=ix.reduce((x,i)=>x+(h.precipitation[i]||0),0),pm=Math.max(...ix.map(i=>h.precipitation_probability[i]||0)),code=soft(raw,ps,dayRain?0.3:Infinity,pm),[e,tx]=wc(code);
     const tmp=ix.map(i=>h.temperature_2m[i]),avg=tmp.reduce((a,b)=>a+b,0)/tmp.length;
     const pp=Math.max(...ix.map(i=>h.precipitation_probability[i]||0)),wd=Math.max(...ix.map(i=>h.wind_speed_10m[i]||0));
     const over=ix[ix.length-1]<nowI;
