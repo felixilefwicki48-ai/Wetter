@@ -120,6 +120,12 @@ const legend=`<div class="leg"><b>Wetter (das Tages-Icon zeigt das markanteste W
 const wc=c=>{const r=WC.find(x=>x[0]==c)||[0,"❔","–"];return [r[1],r[2]]};
 const RAINC=[51,53,55,61,63,65,80,81,82];
 /* Regen-Icon und -Text erst ab Mindestmenge (Tag 1,0 mm, Zeitraum im Tagesverlauf 0,3 mm); darunter Schauer ab 10 % Regenwahrscheinlichkeit, sonst Wolkig/Bedeckt */
+/* Aktuelles Icon: Regen nur, wenn jetzt wirklich Niederschlag fällt (ab 0,1 mm), sonst Schauer ab 10 % Wahrscheinlichkeit bzw. Wolkig/Bedeckt */
+function ccode(c,h,idx){
+  const k=c.weather_code;
+  if(!RAINC.includes(k)||(c.precipitation||0)>=0.1)return k;
+  return ((h.precipitation_probability[idx]||0)>=10)?80:(k>=80?2:3);
+}
 function dcode(dl,n){
   const c=dl.weather_code[n];
   if(!RAINC.includes(c)||(dl.precipitation_sum[n]||0)>=1)return c;
@@ -224,7 +230,7 @@ $("#ref").onclick=()=>{if(place)load(place,okPlace===pid(place))};
 async function load(p,silent){
   place=p;renderFavs();if(!silent)$("#app").innerHTML=`<p class="msg">Lade Wetter für ${esc(p.name)} …</p>`;
   $("#ref").classList.add("spin");$("#ref").disabled=true;
-  const u=`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl&hourly=temperature_2m,weather_code,wind_speed_10m,precipitation_probability,pressure_msl,precipitation&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max,snowfall_sum,wind_direction_10m_dominant,wind_gusts_10m_max&timezone=auto&past_days=1&forecast_days=14&wind_speed_unit=kmh`;
+  const u=`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,precipitation&hourly=temperature_2m,weather_code,wind_speed_10m,precipitation_probability,pressure_msl,precipitation&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset,uv_index_max,snowfall_sum,wind_direction_10m_dominant,wind_gusts_10m_max&timezone=auto&past_days=1&forecast_days=14&wind_speed_unit=kmh`;
   try{
     const [r,pl,rn]=await Promise.all([fetch(u,{cache:"no-store"}),loadPollen(p),loadRain(p)]);if(!r.ok)throw 0;
     cache=await r.json();pollen=pl;rain15=rn;okPlace=pid(p);render();
@@ -249,9 +255,10 @@ const PER=[["Morgens","6–9 Uhr",6,8],["Vormittags","9–12 Uhr",9,11],["Mittag
 function dayPanel(n){
   const h=cache.hourly,dl=cache.daily,nowI=h.time.indexOf(cache.current.time.slice(0,13)+":00");
   const title=n<3?["Heute","Morgen"][n-1]:day(dl.time[n],{weekday:"long"});
+  const dayRain=(dl.precipitation_sum[n]||0)>=1;
   const rows=PER.map(([nm,rng,f,t])=>{
     const ix=[];for(let k=f;k<=t;k++)ix.push(24*n+k);
-    const raw=Math.max(...ix.map(i=>h.weather_code[i]||0)),ps=ix.reduce((x,i)=>x+(h.precipitation[i]||0),0),pm=Math.max(...ix.map(i=>h.precipitation_probability[i]||0)),code=RAINC.includes(raw)&&ps<0.3?(pm>=10?80:(raw>=80?2:3)):raw,[e,tx]=wc(code);
+    const raw=Math.max(...ix.map(i=>h.weather_code[i]||0)),ps=ix.reduce((x,i)=>x+(h.precipitation[i]||0),0),pm=Math.max(...ix.map(i=>h.precipitation_probability[i]||0)),code=RAINC.includes(raw)&&!(dayRain&&ps>=0.3)?(pm>=10?80:(raw>=80?2:3)):raw,[e,tx]=wc(code);
     const tmp=ix.map(i=>h.temperature_2m[i]),avg=tmp.reduce((a,b)=>a+b,0)/tmp.length;
     const pp=Math.max(...ix.map(i=>h.precipitation_probability[i]||0)),wd=Math.max(...ix.map(i=>h.wind_speed_10m[i]||0));
     const over=ix[ix.length-1]<nowI;
@@ -339,7 +346,7 @@ function render(){
   const d=cache,c=d.current,h=d.hourly,dl=d.daily;
   let idx=h.time.indexOf(c.time.slice(0,13)+":00");
   if(idx<0){const d0=h.time.findIndex(t=>t.slice(0,10)==c.time.slice(0,10));idx=(d0<0?24:d0)+(+c.time.slice(11,13)||0)} // Fallback: Stunde von heute
-  const [em,tx]=wc(c.weather_code);
+  const [em,tx]=wc(ccode(c,h,idx));
   const names=["Heute","Morgen"];
   const d3=[1,2,3].map(n=>{const [e,t]=wc(dcode(dl,n));return `<button type="button" class="box dbtn" data-n="${n}" aria-expanded="false" aria-controls="dayPanel"><span class="mu">${n<3?names[n-1]:day(dl.time[n],{weekday:"long"})}</span><div class="e">${e}</div><b>${t0(dl.temperature_2m_max[n])}</b> <span class="mu">${t0(dl.temperature_2m_min[n])}</span><div class="mu">${t}<br>Regen ${dl.precipitation_probability_max[n]??0} % · ${fx(dl.precipitation_sum[n])} mm<br>Wind bis ${Math.round(dl.wind_speed_10m_max[n])} km/h</div><div class="mu small" style="margin-top:6px">Tagesverlauf ▾</div></button>`}).join("");
   const gmin=Math.min(...dl.temperature_2m_min.slice(1)),gmax=Math.max(...dl.temperature_2m_max.slice(1));
