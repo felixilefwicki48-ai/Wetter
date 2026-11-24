@@ -118,13 +118,16 @@ const LEG=[["☀️","Klar"],["🌤️","Überwiegend klar"],["⛅","Wolkig"],["
 const LEGW=[["⚠️","Für diesen Tag liegt eine Warnung vor"],["🧊","Glättegefahr"],["🥶","Frost unter 0 °C"],["🤧","Erhöhter Pollenflug"],["💨","Starker Wind oder Böen"]];
 const legend=`<div class="leg"><b>Wetter (das Tages-Icon zeigt das markanteste Wetter des Tages)</b>${LEG.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}<b>Warnungen</b>${LEGW.map(x=>`<span><span class="i">${x[0]}</span>${x[1]}</span>`).join("")}</div>`;
 const wc=c=>{const r=WC.find(x=>x[0]==c)||[0,"❔","–"];return [r[1],r[2]]};
+const RAINC=[51,53,55,61,63,65,80,81,82];
+/* Regen-Icon und -Text erst ab Mindestmenge: Tag 1,0 mm, Zeitraum im Tagesverlauf 0,3 mm; sonst Wolkig/Bedeckt */
+function dcode(dl,n){const c=dl.weather_code[n];return RAINC.includes(c)&&(dl.precipitation_sum[n]||0)<1?(c>=80?2:3):c}
 const t0=v=>Math.round(v)+"°C";
 const BFT=[1,6,12,20,29,39,50,62,75,89,103,118],BFN=["Windstille","leiser Zug","leichte Brise","schwache Brise","mäßige Brise","frische Brise","starker Wind","steifer Wind","stürmischer Wind","Sturm","schwerer Sturm","orkanartiger Sturm","Orkan"];
 const bft=v=>BFT.filter(x=>v>=x).length;
 function todayBox(dl,c){
-  const [e,t]=wc(dl.weather_code[1]),w=dl.wind_speed_10m_max[1],b=bft(w);
+  const [e,t]=wc(dcode(dl,1)),w=dl.wind_speed_10m_max[1],b=bft(w);
   const wd=dl.wind_direction_10m_dominant&&dl.wind_direction_10m_dominant[1]!=null?dl.wind_direction_10m_dominant[1]:c.wind_direction_10m;
-  return `<div class="today"><span class="ic" role="img" aria-label="${t}" title="${t}">${e}</span><div><div><b style="font-weight:600">Wetter heute:</b> ${t}</div><div>Höchstwert ${t0(dl.temperature_2m_max[1])} · Tiefstwert ${t0(dl.temperature_2m_min[1])}</div><div>Wind aus ${dir(wd)}, bis ${Math.round(w)} km/h (Stärke ${b}, ${BFN[b]})</div></div></div>`;
+  return `<div class="today"><span class="ic" role="img" aria-label="${t}" title="${t}">${e}</span><div><div><b style="font-weight:600">Wetter heute:</b> ${t}</div><div>Höchstwert ${t0(dl.temperature_2m_max[1])} · Tiefstwert ${t0(dl.temperature_2m_min[1])}</div><div>Regen heute: ${fx(dl.precipitation_sum[1]||0)} mm (${dl.precipitation_probability_max[1]??0} % Wahrscheinlichkeit)</div><div>Wind aus ${dir(wd)}, bis ${Math.round(w)} km/h (Stärke ${b}, ${BFN[b]})</div></div></div>`;
 }
 const dir=d=>["N","NO","O","SO","S","SW","W","NW"][Math.round(d/45)%8];
 const hm=s=>s.slice(11,16);
@@ -244,7 +247,7 @@ function dayPanel(n){
   const title=n<3?["Heute","Morgen"][n-1]:day(dl.time[n],{weekday:"long"});
   const rows=PER.map(([nm,rng,f,t])=>{
     const ix=[];for(let k=f;k<=t;k++)ix.push(24*n+k);
-    const code=Math.max(...ix.map(i=>h.weather_code[i]||0)),[e,tx]=wc(code);
+    const raw=Math.max(...ix.map(i=>h.weather_code[i]||0)),ps=ix.reduce((x,i)=>x+(h.precipitation[i]||0),0),code=RAINC.includes(raw)&&ps<0.3?(raw>=80?2:3):raw,[e,tx]=wc(code);
     const tmp=ix.map(i=>h.temperature_2m[i]),avg=tmp.reduce((a,b)=>a+b,0)/tmp.length;
     const pp=Math.max(...ix.map(i=>h.precipitation_probability[i]||0)),wd=Math.max(...ix.map(i=>h.wind_speed_10m[i]||0));
     const over=ix[ix.length-1]<nowI;
@@ -334,9 +337,9 @@ function render(){
   if(idx<0){const d0=h.time.findIndex(t=>t.slice(0,10)==c.time.slice(0,10));idx=(d0<0?24:d0)+(+c.time.slice(11,13)||0)} // Fallback: Stunde von heute
   const [em,tx]=wc(c.weather_code);
   const names=["Heute","Morgen"];
-  const d3=[1,2,3].map(n=>{const [e,t]=wc(dl.weather_code[n]);return `<button type="button" class="box dbtn" data-n="${n}" aria-expanded="false" aria-controls="dayPanel"><span class="mu">${n<3?names[n-1]:day(dl.time[n],{weekday:"long"})}</span><div class="e">${e}</div><b>${t0(dl.temperature_2m_max[n])}</b> <span class="mu">${t0(dl.temperature_2m_min[n])}</span><div class="mu">${t}<br>Regen ${dl.precipitation_probability_max[n]??0} % · ${fx(dl.precipitation_sum[n])} mm<br>Wind bis ${Math.round(dl.wind_speed_10m_max[n])} km/h</div><div class="mu small" style="margin-top:6px">Tagesverlauf ▾</div></button>`}).join("");
+  const d3=[1,2,3].map(n=>{const [e,t]=wc(dcode(dl,n));return `<button type="button" class="box dbtn" data-n="${n}" aria-expanded="false" aria-controls="dayPanel"><span class="mu">${n<3?names[n-1]:day(dl.time[n],{weekday:"long"})}</span><div class="e">${e}</div><b>${t0(dl.temperature_2m_max[n])}</b> <span class="mu">${t0(dl.temperature_2m_min[n])}</span><div class="mu">${t}<br>Regen ${dl.precipitation_probability_max[n]??0} % · ${fx(dl.precipitation_sum[n])} mm<br>Wind bis ${Math.round(dl.wind_speed_10m_max[n])} km/h</div><div class="mu small" style="margin-top:6px">Tagesverlauf ▾</div></button>`}).join("");
   const gmin=Math.min(...dl.temperature_2m_min.slice(1)),gmax=Math.max(...dl.temperature_2m_max.slice(1));
-  const d14=dl.time.slice(1).map((t,k)=>{const n=k+1,[e,tt]=wc(dl.weather_code[n]),lo=dl.temperature_2m_min[n],hi=dl.temperature_2m_max[n],ww=warns(n),pp=dl.precipitation_probability_max[n]??0;
+  const d14=dl.time.slice(1).map((t,k)=>{const n=k+1,[e,tt]=wc(dcode(dl,n)),lo=dl.temperature_2m_min[n],hi=dl.temperature_2m_max[n],ww=warns(n),pp=dl.precipitation_probability_max[n]??0;
     const a=(lo-gmin)/(gmax-gmin)*100,b=(hi-gmin)/(gmax-gmin)*100;
     return `<details class="day"><summary><span>${n==1?"Heute":day(t,{weekday:"short",day:"numeric",month:"numeric"})}${ww.length?" ⚠️":""}</span><span class="ic">${e}</span><div><div class="bar"><i style="left:${a}%;right:${100-b}%"></i></div><div class="rng"><span>${tt}</span><span>${pp} % Regen</span></div></div><b style="font-weight:500;text-align:right">${t0(lo)} / ${t0(hi)}</b></summary>
     <div class="dbody">${wHtml(ww)}<div class="facts"><div><span>Niederschlag</span>${fx(dl.precipitation_sum[n])} mm</div><div><span>Wind bis</span>${Math.round(dl.wind_speed_10m_max[n])} km/h</div><div><span>Böen bis</span>${Math.round(dl.wind_gusts_10m_max[n])} km/h</div><div><span>UV-Index</span>${Math.round(dl.uv_index_max[n])}</div><div><span>Sonne</span>${hm(dl.sunrise[n])} bis ${hm(dl.sunset[n])} Uhr</div></div></div></details>`}).join("");
